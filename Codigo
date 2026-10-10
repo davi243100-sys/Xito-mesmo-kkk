@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador Master</title>
+    <style>
+        /* ESTILO VISUAL (Preto e Vermelho) */
+        body { 
+            background-color: #000; 
+            color: #fff; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            text-align: center; 
+            padding: 20px; 
+            margin: 0;
+        }
+        
+        h1 { 
+            color: #ff0000; 
+            text-transform: uppercase; 
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+        }
+
+        /* CAMPOS DE INPUT E SELECT */
+        input, select { 
+            display: block; 
+            width: 90%; 
+            margin: 10px auto; 
+            padding: 15px; 
+            border-radius: 8px; 
+            border: 1px solid #333; 
+            background: #1a1a1a; 
+            color: white; 
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        input::placeholder { color: #666; }
+
+        /* BOTÃO PRINCIPAL */
+        button.main-btn { 
+            background: linear-gradient(45deg, #cc0000, #ff0000); 
+            color: white; 
+            font-weight: bold; 
+            cursor: pointer; 
+            width: 90%;
+            margin-top: 15px;
+            box-shadow: 0 4px 15px rgba(255, 0, 0, 0.3);
+        }
+        button.main-btn:active { transform: scale(0.98); }
+
+        /* ÁREA DA KEY GERADA */
+        #resultArea {
+            margin-top: 20px;
+            padding: 15px;
+            background: #111;
+            border: 1px dashed #ff0000;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 18px;
+            color: #0f0;
+            display: none; /* Escondido até gerar */
+        }
+
+        /* LISTA DE ADMIN */
+        h3 { text-align: left; border-bottom: 1px solid #333; padding-bottom: 5px; margin-top: 30px; }
+        .key-list { text-align: left; margin-top: 10px; max-height: 350px; overflow-y: auto; padding-right: 5px; }
+        
+        .key-item { 
+            background: #111; 
+            padding: 12px; 
+            margin-bottom: 8px; 
+            border-left: 3px solid red; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            border-radius: 4px;
+        }
+
+        .key-info { display: flex; flex-direction: column; align-items: flex-start; }
+        .key-text { font-family: monospace; font-weight: bold; letter-spacing: 1px; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        .dot-active { background-color: #0f0; box-shadow: 0 0 5px #0f0; }
+        .dot-revoked { background-color: #f00; }
+
+        /* BOTÕES DA LISTA */
+        .btn-group { display: flex; gap: 5px; }
+        .btn-copy { background: #333; color: white; padding: 5px 10px; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; }
+        .btn-rev { background: #500; color: white; padding: 5px 10px; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; }
+        .btn-copy:hover { background: #444; }
+        .btn-rev:hover { background: #700; }
+
+        /* Scrollbar personalizada */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar-thumb { background: #ff0000; border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+    <h1>⚡ Gerador PRO</h1>
+    
+    <!-- CONFIGURAÇÃO -->
+    <input type="text" id="prefixInput" placeholder="Prefixo (ex: VIP)" value="VIP">
+    
+    <select id="expirySelect">
+        <option value="1">1 Dia</option>
+        <option value="7" selected>7 Dias</option>
+        <option value="30">30 Dias</option>
+        <option value="90">3 Meses</option>
+        <option value="365">1 Ano</option>
+    </select>
+    
+    <button class="main-btn" onclick="generateKey()">GERAR NOVA KEY</button>
+    
+    <!-- ÁREA DE RESULTADO -->
+    <div id="resultArea"></div>
+
+    <!-- LISTA ADMINISTRATIVA -->
+    <h3>📂 Histórico & Gestão</h3>
+    <div class="key-list" id="keyList">
+        <p style="color:#666; font-size:12px;">Carregando...</p>
+    </div>
+
+    <!-- BIBLIOTECA FIREBASE -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <script>
+        // ---------------------------------------------------------
+        // ⚙️ COLE SUA CONFIGURAÇÃO DO FIREBASE AQUI EMBAIXO
+        // ---------------------------------------------------------
+        const firebaseConfig = {
+            apiKey: "SUA_CHAVE_AQUI", 
+            authDomain: "SEU_PROJETO.firebaseapp.com",
+            projectId: "SEU_ID_DO_PROJETO",
+            storageBucket: "SEU_PROJETO.appspot.com",
+            messagingSenderId: "NUMERO",
+            appId: "ID_DO_APP"
+        };
+
+        // Inicializa o Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+
+        // FUNÇÃO PARA GERAR KEY
+        function generateKey() {
+            const prefix = document.getElementById('prefixInput').value.trim() || "KEY";
+            const days = parseInt(document.getElementById('expirySelect').value);
+            
+            // Gera string aleatória
+            const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
+            const keyString = `${prefix}-${randomPart}`;
+            
+            // Calcula data de expiração
+            const now = new Date();
+            const expiry = new Date(now.getTime() + (days * 24 * 60 * 60 * 1000));
+
+            // Objeto para salvar
+            const dataToSave = {
+                key: keyString,
+                expiry: expiry.toISOString(), // Salva como ISO string
+                status: "active",
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            // Salva no banco de dados
+            db.collection("keys").add(dataToSave).then(() => {
+                // Mostra na tela
+                const resultDiv = document.getElementById('resultArea');
+                resultDiv.style.display = 'block';
+                resultDiv.innerText = "✅ " + keyString;
+                
+                // Copia automaticamente
+                navigator.clipboard.writeText(keyString);
+                
+                // Feedback visual
+                alert("Key gerada e copiada!");
+            }).catch(err => {
+                alert("Erro ao gerar: " + err.message);
+            });
+        }
+
+        // CARREGAR LISTA DE KEYS (Tempo Real)
+        db.collection("keys").orderBy("createdAt", "desc").limit(50).onSnapshot((snapshot) => {
+            const list = document.getElementById("keyList");
+            list.innerHTML = ""; // Limpa lista atual
+
+            if(snapshot.empty) {
+                list.innerHTML = "<p style='color:#666'>Nenhuma key gerada ainda.</p>";
+                return;
+            }
+
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                const div = document.createElement("div");
+                div.className = "key-item";
+                
+                // Define cor do status
+                let statusColorClass = data.status === 'active' ? 'dot-active' : 'dot-revoked';
+                let statusText = data.status === 'active' ? 'Ativa' : 'Revogada';
+
+                // Botão de revogar só aparece se estiver ativa
+                let revokeBtn = '';
+                if(data.status === 'active') {
+                    revokeBtn = `<button class="btn-rev" onclick="revokeKey('${doc.id}', '${data.key}')">Revogar</button>`;
+                } else {
+                    revokeBtn = `<span style="font-size:10px; color:#888;">BLOQUEADA</span>`;
+                }
+
+                div.innerHTML = `
+                    <div class="key-info">
+                        <span class="key-text">${data.key}</span>
+                        <span style="font-size:10px; color:#aaa;">${statusText} • Expira: ${new Date(data.expiry).toLocaleDateString()}</span>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn-copy" onclick="copyText('${data.key}')">Copiar</button>
+                        ${revokeBtn}
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        });
+
+        // FUNÇÕES AUXILIARES
+        function revokeKey(id, key) {
+            if(confirm(`Tem certeza que quer bloquear a key ${key}? Ela não funcionará mais.`)) {
+                db.collection("keys").doc(id).update({ status: "revoked" });
+            }
+        }
+
+        function copyText(text) {
+            navigator.clipboard.writeText(text);
+            // Pequeno feedback visual no botão seria ideal, mas simplificado aqui
+        }
+    </script>
+</body>
+</html>
